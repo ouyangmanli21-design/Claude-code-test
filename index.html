@@ -1,0 +1,1150 @@
+<title>Sounding Line</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A scroll-dive through the ocean's zones: what it does for us, what is breaking it, and what is measurably working.">
+
+<style>
+  /* ============================================================
+     SOUNDING LINE — tokens
+     Light is the base palette. Dark redefines tokens only.
+     ============================================================ */
+  :root {
+    /* neutrals + accents */
+    --paper:   #E9EEEA;   /* survey-chart paper, grey-green */
+    --ink:     #0A1D26;   /* petrol black */
+    --ink-2:   #35505A;   /* secondary ink */
+    --ink-3:   #5E767E;   /* muted ink */
+    --tide:    #16626D;   /* workhorse accent */
+    --lumen:   #58D9A8;   /* bioluminescence — deep zones only */
+    --alarm:   #C4502A;   /* coral-bleach warning — pressure data only */
+    --sediment:#C9B79A;   /* rules, ticks */
+
+    /* zone grounds — the dive */
+    --z0-bg: #E9EEEA;  --z0-fg: #0A1D26;  --z0-dim: #5E767E;  --z0-acc: #16626D;
+    --z1-bg: #1E5A63;  --z1-fg: #DCE9E6;  --z1-dim: #9FC0BE;  --z1-acc: #7FE3BE;
+    --z2-bg: #0C2E38;  --z2-fg: #D3E4E2;  --z2-dim: #7FA3A6;  --z2-acc: #58D9A8;
+    --z3-bg: #061A22;  --z3-fg: #C6DCDA;  --z3-dim: #6E9498;  --z3-acc: #58D9A8;
+    --z4-bg: #030E13;  --z4-fg: #BCD5D3;  --z4-dim: #648A8E;  --z4-acc: #58D9A8;
+    --z5-bg: #E9EEEA;  --z5-fg: #0A1D26;  --z5-dim: #5E767E;  --z5-acc: #16626D;
+
+    /* rails + surfaces */
+    --rule:    rgba(10, 29, 38, 0.16);
+    --rail-bg: rgba(233, 238, 234, 0.95);
+    --snow:    0;         /* marine-snow opacity, driven by scroll */
+
+    /* ground-relative ink — the rail picks one by the luminance behind it,
+       so it stays legible across every zone transition in both themes */
+    --on-light: #0A1D26;
+    --on-dark:  #D3E4E2;
+
+    /* type */
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans:  "Avenir Next", Avenir, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono:  ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    /* scale */
+    --measure: 34rem;
+    --gutter: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:   #10262E;
+      --ink:     #DDE9E6;
+      --ink-2:   #A8C2C0;
+      --ink-3:   #7C9B9C;
+      --tide:    #57BFB4;
+      --sediment:#8A7C67;
+
+      --z0-bg: #10262E;  --z0-fg: #DDE9E6;  --z0-dim: #7C9B9C;  --z0-acc: #6FD5C4;
+      --z1-bg: #123F49;  --z1-fg: #D6E7E4;  --z1-dim: #8FB2B1;  --z1-acc: #7FE3BE;
+      --z5-bg: #10262E;  --z5-fg: #DDE9E6;  --z5-dim: #7C9B9C;  --z5-acc: #6FD5C4;
+
+      --rule:    rgba(221, 233, 230, 0.18);
+      --rail-bg: rgba(16, 38, 46, 0.95);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:   #10262E;
+    --ink:     #DDE9E6;
+    --ink-2:   #A8C2C0;
+    --ink-3:   #7C9B9C;
+    --tide:    #57BFB4;
+    --sediment:#8A7C67;
+
+    --z0-bg: #10262E;  --z0-fg: #DDE9E6;  --z0-dim: #7C9B9C;  --z0-acc: #6FD5C4;
+    --z1-bg: #123F49;  --z1-fg: #D6E7E4;  --z1-dim: #8FB2B1;  --z1-acc: #7FE3BE;
+    --z5-bg: #10262E;  --z5-fg: #DDE9E6;  --z5-dim: #7C9B9C;  --z5-acc: #6FD5C4;
+
+    --rule:    rgba(221, 233, 230, 0.18);
+    --rail-bg: rgba(16, 38, 46, 0.95);
+  }
+
+  /* ============================================================
+     base
+     ============================================================ */
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+
+  :focus-visible {
+    outline: 2px solid var(--lumen);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .skip {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.75rem 1rem;
+    z-index: 40;
+  }
+  .skip:focus { left: 0; }
+
+  /* ============================================================
+     marine snow — ambient, deep zones only
+     ============================================================ */
+  #snow {
+    position: fixed;
+    inset: 0;
+    z-index: 5;   /* drifts in front of the zone grounds, behind the gauge */
+    pointer-events: none;
+    opacity: var(--snow);
+    transition: opacity 400ms linear;
+  }
+
+  /* ============================================================
+     depth rail — the instrument
+     ============================================================ */
+  .rail {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 9.5rem;
+    z-index: 20;
+    padding: 1.5rem 0 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    pointer-events: none;
+    color: var(--rail-ink, var(--ink));
+    transition: color 400ms linear;
+  }
+
+  .readout {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    pointer-events: none;
+  }
+
+  .readout b {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  .readout small {
+    display: block;
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.72;
+    margin-top: 0.35rem;
+  }
+
+  .ticks {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-left: 1px solid color-mix(in oklab, currentColor 30%, transparent);
+    padding-left: 0.75rem;
+    margin-left: 0.15rem;
+    pointer-events: auto;
+  }
+
+  .tick {
+    display: block;
+    background: none;
+    border: 0;
+    padding: 0.2rem 0;
+    text-align: left;
+    color: inherit;
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    opacity: 0.6;
+  }
+
+  .tick::before {
+    content: "";
+    position: absolute;
+    left: -0.75rem;
+    top: 50%;
+    width: 0.4rem;
+    height: 1px;
+    background: currentColor;
+  }
+
+  .tick:hover, .tick[aria-current="true"] { opacity: 1; }
+
+  .tick[aria-current="true"]::before {
+    width: 0.75rem;
+    height: 2px;
+    left: -0.75rem;
+  }
+
+  @media (max-width: 60rem) {
+    .rail {
+      width: auto;
+      inset: auto auto 0 0;
+      right: 0;
+      top: auto;
+      flex-direction: row;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.5rem var(--gutter);
+      background: var(--rail-bg);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--rule);
+      color: var(--ink);   /* sits on its own plate, not on the zone ground */
+    }
+    .readout b { font-size: 1rem; display: inline; }
+    .readout small { display: inline; margin-left: 0.5rem; }
+    .ticks { display: none; }
+  }
+
+  /* ============================================================
+     zones
+     ============================================================ */
+  .zone {
+    position: relative;
+    z-index: 2;
+    background: var(--bg);
+    color: var(--fg);
+    --rule: color-mix(in oklab, var(--fg) 20%, transparent);
+    padding: calc(26vh + 2rem) var(--gutter) clamp(5rem, 14vh, 9rem) calc(9.5rem + var(--gutter));
+  }
+
+  /* the water between zones — light attenuating with depth. Kept in its own
+     band so no body copy ever sits on a gradient. */
+  .zone::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 26vh;
+    background: linear-gradient(180deg, var(--prev), var(--bg));
+    pointer-events: none;
+  }
+
+  .zone.hero { padding-top: clamp(5rem, 14vh, 9rem); }
+  .zone.hero::before { display: none; }
+
+  @media (max-width: 60rem) {
+    .zone { padding-left: var(--gutter); padding-right: var(--gutter); }
+    .zone:last-of-type { padding-bottom: 7rem; }
+  }
+
+  .z0 { --bg: var(--z0-bg); --fg: var(--z0-fg); --dim: var(--z0-dim); --acc: var(--z0-acc); --prev: var(--z0-bg); }
+  .z1 { --bg: var(--z1-bg); --fg: var(--z1-fg); --dim: var(--z1-dim); --acc: var(--z1-acc); --prev: var(--z0-bg); }
+  .z2 { --bg: var(--z2-bg); --fg: var(--z2-fg); --dim: var(--z2-dim); --acc: var(--z2-acc); --prev: var(--z1-bg); }
+  .z3 { --bg: var(--z3-bg); --fg: var(--z3-fg); --dim: var(--z3-dim); --acc: var(--z3-acc); --prev: var(--z2-bg); }
+  .z4 { --bg: var(--z4-bg); --fg: var(--z4-fg); --dim: var(--z4-dim); --acc: var(--z4-acc); --prev: var(--z3-bg); }
+  .z5 { --bg: var(--z5-bg); --fg: var(--z5-fg); --dim: var(--z5-dim); --acc: var(--z5-acc); --prev: var(--z4-bg); }
+
+  .wrap { max-width: var(--measure); }
+  .wide { max-width: 56rem; }
+
+  /* ============================================================
+     type
+     ============================================================ */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 1.25rem;
+    display: flex;
+    gap: 0.9rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+
+  .eyebrow span { color: var(--acc); }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(3rem, 11vw, 6.5rem);
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  h1 em {
+    display: block;
+    font-style: italic;
+    color: var(--acc);
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(2rem, 5.5vw, 3.25rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 0 0 1.5rem;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin: 0 0 0.4rem;
+  }
+
+  p { margin: 0 0 1.15rem; }
+  p:last-child { margin-bottom: 0; }
+
+  .lede {
+    font-family: var(--serif);
+    font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+    line-height: 1.42;
+    color: var(--fg);
+    margin-bottom: 2rem;
+  }
+
+  .dim { color: var(--dim); }
+
+  .note {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    color: var(--dim);
+  }
+
+  /* ============================================================
+     hero
+     ============================================================ */
+  .hero {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2.5rem;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--rule);
+    padding-top: 1.25rem;
+    max-width: 44rem;
+  }
+
+  .hero-meta div { max-width: 15rem; }
+
+  .plumb {
+    position: relative;
+    padding-left: 1.5rem;
+  }
+
+  .plumb::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.4rem;
+    bottom: -3rem;
+    width: 1px;
+    background: linear-gradient(180deg, var(--acc), transparent);
+  }
+
+  /* ============================================================
+     soundings — stat tiles
+     ============================================================ */
+  .soundings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    border-block: 1px solid var(--rule);
+    margin: 2.5rem 0;
+  }
+
+  .sounding {
+    padding: 1.5rem 1.5rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    border-left: 1px solid var(--rule);
+  }
+
+  .sounding:first-child { border-left: 0; padding-left: 0; }
+
+  .sounding b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+  }
+
+  .sounding b i {
+    font-style: normal;
+    font-size: 0.5em;
+    color: var(--dim);
+    margin-left: 0.15em;
+  }
+
+  .sounding span {
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--fg);
+  }
+
+  .sounding small {
+    font-family: var(--mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-top: auto;
+    padding-top: 0.5rem;
+  }
+
+  .sounding.warn b { color: var(--alarm); }
+  :root[data-theme="dark"] .sounding.warn b,
+  .z2 .sounding.warn b, .z3 .sounding.warn b, .z4 .sounding.warn b { color: #F08A5F; }
+
+  /* ============================================================
+     entries — pressures / findings
+     ============================================================ */
+  .entries {
+    display: grid;
+    gap: 0;
+    margin: 2rem 0 0;
+  }
+
+  .entry {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--rule);
+    align-items: start;
+  }
+
+  .entry:last-child { border-bottom: 1px solid var(--rule); }
+
+  .entry > .key {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--acc);
+    padding-top: 0.25rem;
+  }
+
+  .entry p { font-size: 0.9375rem; color: var(--fg); margin-bottom: 0; }
+  .entry p + p { margin-top: 0.6rem; }
+
+  @media (max-width: 34rem) {
+    .entry { grid-template-columns: 1fr; gap: 0.5rem; }
+  }
+
+  /* ============================================================
+     protection meter — single-series progress against a target
+     ============================================================ */
+  figure.meter {
+    margin: 2.5rem 0 0;
+    max-width: 40rem;
+  }
+
+  figure.meter figcaption {
+    font-size: 0.9375rem;
+    color: var(--fg);
+    margin-bottom: 1.25rem;
+  }
+
+  .track {
+    position: relative;
+    height: 2.25rem;
+    background: color-mix(in oklab, var(--fg) 9%, transparent);
+    border-radius: 3px;
+    --weak:   color-mix(in oklab, var(--acc) 45%, var(--bg));
+    --strong: var(--acc);
+  }
+
+  .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px 4px 4px 3px;
+  }
+
+  .fill.weak   { width: 8.4%; background: var(--weak); }
+  .fill.strong { width: 3%;   background: var(--strong); z-index: 2; }
+
+  .target {
+    position: absolute;
+    top: -0.75rem;
+    bottom: -0.75rem;
+    left: 30%;
+    width: 2px;
+    background: var(--fg);
+  }
+
+  .target b {
+    position: absolute;
+    left: 0.6rem;
+    top: -0.2rem;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+
+  .legend {
+    display: flex;
+    gap: 1.75rem;
+    flex-wrap: wrap;
+    margin: 1.5rem 0 0;
+    font-size: 0.875rem;
+    color: var(--dim);
+  }
+
+  .legend b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: var(--fg);
+    margin-right: 0.35rem;
+  }
+
+  .legend i {
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 2px;
+    margin-right: 0.5rem;
+    vertical-align: -1px;
+  }
+
+  /* ============================================================
+     actions
+     ============================================================ */
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1.75rem 2rem;
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .actions h3 { color: var(--fg); }
+  .actions p { font-size: 0.9375rem; color: var(--dim); margin: 0; }
+
+  .actions .num {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    color: var(--acc);
+    display: block;
+    margin-bottom: 0.6rem;
+  }
+
+  /* ============================================================
+     footer
+     ============================================================ */
+  footer {
+    position: relative;
+    z-index: 2;
+    background: var(--paper);
+    color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    padding: 2.5rem var(--gutter) 3.5rem calc(9.5rem + var(--gutter));
+  }
+
+  @media (max-width: 60rem) {
+    footer { padding-left: var(--gutter); padding-bottom: 6rem; }
+  }
+
+  footer .wrap { max-width: 48rem; }
+  footer p { font-family: var(--mono); font-size: 0.6875rem; line-height: 1.75; }
+  footer b { color: var(--ink); font-weight: 500; }
+
+  /* ============================================================
+     motion
+     ============================================================ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(1.25rem);
+    transition: opacity 900ms ease, transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal.seen { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition-duration: 1ms !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+
+<a class="skip" href="#dive">Skip to the dive</a>
+
+<canvas id="snow" aria-hidden="true"></canvas>
+
+<nav class="rail" aria-label="Depth">
+  <p class="readout" aria-live="off">
+    <b id="depth">0000</b>
+    <small id="depth-label">metres · sea level</small>
+  </p>
+  <div class="ticks">
+    <button class="tick" data-goto="dive" aria-current="true">0 m surface</button>
+    <button class="tick" data-goto="twilight">200 m twilight</button>
+    <button class="tick" data-goto="midnight">1 000 m midnight</button>
+    <button class="tick" data-goto="abyss">4 000 m abyss</button>
+    <button class="tick" data-goto="works">ascent</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ═══════════════════ SURFACE ═══════════════════ -->
+  <section class="zone z0 hero" id="dive">
+    <div class="wrap plumb">
+      <p class="eyebrow">Sounding Line <span>Ocean conservation, by depth</span></p>
+      <h1>The ocean<em>is not scenery</em></h1>
+    </div>
+
+    <div class="wrap">
+      <p class="lede">It is the largest working part of the climate system, and it is
+        the part we understand least. This page descends through it — one zone at a
+        time — to show what the ocean does for us, what is breaking, and what has
+        measurably worked.</p>
+    </div>
+
+    <div class="hero-meta">
+      <div>
+        <p class="note">Scroll to descend. The gauge on the left reads your depth.</p>
+      </div>
+      <div>
+        <p class="note">Five zones · 0 to 6 000 metres · then back to the light</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ SUNLIGHT ═══════════════════ -->
+  <section class="zone z0" id="sunlight">
+    <div class="wide reveal">
+      <p class="eyebrow">Zone 01 · Epipelagic <span>0 – 200 m</span></p>
+      <h2>Everything that lives here, lives on light</h2>
+      <div class="wrap">
+        <p>The sunlit layer is a thin skin — two hundred metres on an ocean that
+          averages nearly four thousand. Almost all photosynthesis in the sea happens
+          in it. The drifting plants that do that work are microscopic, and between
+          them they run a share of the planet's life support that is easy to
+          underestimate.</p>
+      </div>
+
+      <div class="soundings">
+        <div class="sounding">
+          <b>71<i>%</i></b>
+          <span>of Earth's surface is ocean, holding about 97% of its water.</span>
+          <small>NOAA</small>
+        </div>
+        <div class="sounding">
+          <b>~50<i>%</i></b>
+          <span>of the oxygen in the atmosphere is produced by marine
+            phytoplankton — at minimum.</span>
+          <small>NOAA</small>
+        </div>
+        <div class="sounding">
+          <b>&gt;90<i>%</i></b>
+          <span>of the excess heat trapped by greenhouse gases has been absorbed by
+            the ocean.</span>
+          <small>IPCC AR6</small>
+        </div>
+        <div class="sounding">
+          <b>~25<i>%</i></b>
+          <span>of annual human CO<sub>2</sub> emissions are taken up by seawater
+            each year.</span>
+          <small>Global Carbon Project</small>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <p class="dim">Every one of those services is a subsidy. None of them appears
+          on a balance sheet, and each of them has a limit.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ TWILIGHT ═══════════════════ -->
+  <section class="zone z1" id="twilight">
+    <div class="wide reveal">
+      <p class="eyebrow">Zone 02 · Mesopelagic <span>200 – 1 000 m</span></p>
+      <h2>The pressures do not arrive one at a time</h2>
+      <div class="wrap">
+        <p>Below the light, the water still moves carbon downward — small fish and
+          plankton rise to feed at night and sink by day, carrying carbon with them.
+          It is one of the largest biological migrations on Earth, and it happens
+          twice a day, everywhere. It is also where four separate pressures meet.</p>
+      </div>
+
+      <div class="entries">
+        <div class="entry">
+          <p class="key">Heat</p>
+          <div>
+            <h3>Marine heatwaves are no longer episodes</h3>
+            <p>Ocean heat content has set successive records. Warmer water holds less
+              oxygen and less dissolved carbon dioxide, stratifies more strongly, and
+              shifts species poleward faster than fishing rules can follow.</p>
+          </div>
+        </div>
+        <div class="entry">
+          <p class="key">Chemistry</p>
+          <div>
+            <h3>Surface pH has fallen about 0.1 units since the industrial era</h3>
+            <p>Because pH is logarithmic, that is roughly a 30% increase in acidity.
+              It makes building shells and skeletons measurably harder for corals,
+              oysters, and the pteropods near the base of many food webs.</p>
+          </div>
+        </div>
+        <div class="entry">
+          <p class="key">Fishing</p>
+          <div>
+            <h3>Roughly a third of assessed stocks are fished beyond sustainable limits</h3>
+            <p>FAO's 2024 assessment puts it at 37.7%. The pressure is now moving
+              downward: proposals to trawl the mesopelagic for fishmeal would target
+              the same animals that run the biological carbon pump.</p>
+          </div>
+        </div>
+        <div class="entry">
+          <p class="key">Plastic</p>
+          <div>
+            <h3>An estimated 8–11 million tonnes enter the ocean every year</h3>
+            <p>Most published estimates fall in that band. The visible fraction is the
+              smaller problem; fragments below a millimetre are now found in sea ice,
+              deep-sea sediment, and the tissue of animals at every trophic level.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ MIDNIGHT ═══════════════════ -->
+  <section class="zone z2" id="midnight">
+    <div class="wide reveal">
+      <p class="eyebrow">Zone 03 · Bathypelagic <span>1 000 – 4 000 m</span></p>
+      <h2>No sunlight has ever reached this water</h2>
+      <div class="wrap">
+        <p>Past a thousand metres the last blue is gone. What light there is, the
+          animals make themselves — bioluminescence is the ordinary condition here,
+          not the exception. This is the largest habitat on the planet by volume, and
+          the least surveyed.</p>
+        <p>The reefs above it are the clearest ledger of what warming costs. Corals
+          and their algae separate under heat stress; the coral bleaches white and,
+          if the heat holds, starves.</p>
+      </div>
+
+      <div class="soundings">
+        <div class="sounding warn">
+          <b>4<i>th</i></b>
+          <span>global bleaching event on record, running from 2023 across all three
+            ocean basins.</span>
+          <small>NOAA Coral Reef Watch</small>
+        </div>
+        <div class="sounding warn">
+          <b>~50<i>%</i></b>
+          <span>of the world's living coral cover has been lost since the 1950s.</span>
+          <small>Eddy et al., 2021</small>
+        </div>
+        <div class="sounding">
+          <b>~25<i>%</i></b>
+          <span>of all marine species depend on reefs, which cover well under 1% of
+            the seafloor.</span>
+          <small>UNEP</small>
+        </div>
+        <div class="sounding">
+          <b>~3<i>bn</i></b>
+          <span>people rely on seafood for a significant share of their animal
+            protein.</span>
+          <small>FAO</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ ABYSS ═══════════════════ -->
+  <section class="zone z3" id="abyss">
+    <div class="wide reveal">
+      <p class="eyebrow">Zone 04 · Abyssopelagic <span>4 000 – 6 000 m</span></p>
+      <h2>The decision being made in the dark</h2>
+      <div class="wrap">
+        <p>The abyssal plain is the largest single habitat on Earth. It is also
+          carpeted, in places, with polymetallic nodules — potato-sized lumps of
+          manganese, nickel, and cobalt that took millions of years to form and that
+          several companies would like to collect at industrial scale.</p>
+        <p>The ecological case against moving quickly is unusually simple: the
+          sediment plumes raised by collection would settle over areas far larger than
+          those mined, and the communities living on those nodules have no
+          demonstrated way to recolonise on any human timescale. Test tracks cut into
+          the seafloor in the 1970s and 1980s are still visible, still largely
+          unrecovered.</p>
+        <p>More than thirty governments have called for a pause or moratorium until
+          the science is settled. The International Seabed Authority has not yet
+          adopted a completed mining code. This one is still open.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ TRENCH ═══════════════════ -->
+  <section class="zone z4" id="trench">
+    <div class="wide reveal">
+      <p class="eyebrow">Zone 05 · Hadal <span>6 000 m and below</span></p>
+      <h2>Even here, the record is ours</h2>
+      <div class="wrap">
+        <p>The deepest surveyed trenches lie near eleven kilometres down, at pressures
+          over a thousand times those at the surface. Fewer people have visited the
+          bottom of the Mariana Trench than have walked on the Moon.</p>
+        <p>The amphipods living there carry industrial pollutants — PCBs and
+          persistent organic compounds banned decades ago — at concentrations
+          comparable to some of the most contaminated coastal rivers on Earth.
+          Plastic bags have been photographed at the bottom. There is no part of the
+          ocean that is somewhere else.</p>
+        <p class="dim">Which is the argument for turning around.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ ASCENT ═══════════════════ -->
+  <section class="zone z5" id="works">
+    <div class="wide reveal">
+      <p class="eyebrow">Ascent <span>What has measurably worked</span></p>
+      <h2>Protection is the one intervention with a track record</h2>
+      <div class="wrap">
+        <p>Conservation reporting tends to stop at the damage. But the ocean is
+          unusually responsive: fully protected areas accumulate fish biomass several
+          times over in a decade, and the surplus spills across their borders into
+          the fisheries next door. The problem is not that protection fails. It is
+          that most of what gets counted as protection does not restrict anything.</p>
+      </div>
+
+      <figure class="meter">
+        <figcaption>Share of the global ocean under protection, against the 30% by
+          2030 commitment in the Global Biodiversity Framework.</figcaption>
+        <div class="track" role="img"
+             aria-label="About 8.4 percent of the ocean carries some protective designation; roughly 3 percent is fully or highly protected. The target is 30 percent by 2030.">
+          <div class="fill weak"></div>
+          <div class="fill strong"></div>
+          <div class="target"><b>30% target by 2030</b></div>
+        </div>
+        <p class="legend">
+          <span><i style="background: var(--acc)"></i><b>3.0%</b>fully or highly protected</span>
+          <span><i style="background: color-mix(in oklab, var(--acc) 45%, var(--bg))"></i><b>8.4%</b>any designation</span>
+        </p>
+        <p class="note" style="margin-top: 0.9rem">Figures follow the Marine Protection
+          Atlas. The gap between the two bars is the whole argument: designation on
+          paper is not the same as protection in the water.</p>
+      </figure>
+
+      <div class="entries">
+        <div class="entry">
+          <p class="key">Law</p>
+          <div>
+            <h3>The High Seas Treaty closed a two-thirds gap</h3>
+            <p>Adopted in June 2023 after nearly twenty years of negotiation, the BBNJ
+              agreement creates, for the first time, a legal route to establish
+              protected areas in international waters — the two-thirds of the ocean
+              that belonged to no one's rulebook.</p>
+          </div>
+        </div>
+        <div class="entry">
+          <p class="key">Recovery</p>
+          <div>
+            <h3>Populations come back when the pressure stops</h3>
+            <p>Humpback whales in the Southern Hemisphere have rebuilt from a few
+              percent of their pre-whaling numbers. Several rebuilt stocks — including
+              Atlantic swordfish and Pacific bluefin — show the same shape. Recovery
+              is slow, unglamorous, and repeatable.</p>
+          </div>
+        </div>
+        <div class="entry">
+          <p class="key">Carbon</p>
+          <div>
+            <h3>Blue carbon does two jobs at once</h3>
+            <p>Mangroves, seagrass meadows, and salt marshes bury carbon in waterlogged
+              sediment at rates per hectare far above tropical forest, and hold it for
+              centuries. They are also nurseries and storm buffers. Restoring them is
+              among the few climate actions that pays out locally and immediately.</p>
+          </div>
+        </div>
+        <div class="entry">
+          <p class="key">Management</p>
+          <div>
+            <h3>Science-based catch limits work where they are enforced</h3>
+            <p>In regions that set quotas from stock assessments and actually police
+              them, the share of overfished stocks has fallen. The failure is
+              concentrated where monitoring is weakest — which makes enforcement, not
+              new science, the binding constraint.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div>
+          <span class="num">01</span>
+          <h3>Push on the 30% target</h3>
+          <p>National protection commitments are decided politically. Ask your
+            representatives what share of your country's waters is fully protected —
+            not merely designated.</p>
+        </div>
+        <div>
+          <span class="num">02</span>
+          <h3>Choose fisheries, not just species</h3>
+          <p>How a fish was caught matters more than which fish it was. Regional
+            seafood guides rank by fishery and gear type; use one at the counter.</p>
+        </div>
+        <div>
+          <span class="num">03</span>
+          <h3>Cut plastic upstream</h3>
+          <p>Beach cleanups matter locally. Production and packaging rules matter at
+            scale — support the ones on the table where you live.</p>
+        </div>
+        <div>
+          <span class="num">04</span>
+          <h3>Back the deep-sea pause</h3>
+          <p>The seabed mining code is unfinished. That is exactly the window in which
+            public pressure changes an outcome rather than commenting on one.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><b>About the figures.</b> Drawn from NOAA, the IPCC Sixth Assessment Report,
+      FAO's State of World Fisheries and Aquaculture, UNEP, the Global Carbon Project,
+      and the Marine Protection Atlas. Ocean statistics are revised as assessments
+      are republished — treat the numbers here as of their most recent cited
+      assessment and check current sources before quoting them.</p>
+    <p><b>Sounding Line</b> · a reference page on ocean conservation, arranged by depth.</p>
+  </div>
+</footer>
+
+<script>
+  /* ── depth gauge ────────────────────────────────────────────── */
+  const ZONES = [
+    { id: "dive",     top: 0,    bottom: 0,     zone: 0, label: "sea level" },
+    { id: "sunlight", top: 0,    bottom: 200,   zone: 0, label: "sunlight zone" },
+    { id: "twilight", top: 200,  bottom: 1000,  zone: 1, label: "twilight zone" },
+    { id: "midnight", top: 1000, bottom: 4000,  zone: 2, label: "midnight zone" },
+    { id: "abyss",    top: 4000, bottom: 6000,  zone: 3, label: "abyssal zone" },
+    { id: "trench",   top: 6000, bottom: 10900, zone: 4, label: "hadal trench" },
+    { id: "works",    top: 10900,bottom: 0,     zone: 5, label: "ascending" },
+  ];
+
+  const sections = ZONES.map(z => ({ ...z, el: document.getElementById(z.id) }));
+  const depthEl  = document.getElementById("depth");
+  const labelEl  = document.getElementById("depth-label");
+  const rail     = document.querySelector(".rail");
+  const ticks    = Array.from(document.querySelectorAll(".tick"));
+
+  const TICK_FOR = { dive: "dive", sunlight: "dive", twilight: "twilight",
+                     midnight: "midnight", abyss: "abyss", trench: "abyss",
+                     works: "works" };
+
+  /* Ground behind the rail: the zone grounds, read from the tokens so both
+     themes work, blended through each transition band by the same curve CSS
+     uses. The rail then picks its ink by luminance — never a washed-out
+     readout on a mid-transition ground. */
+  const css = getComputedStyle(document.documentElement);
+  const grounds = [0, 1, 2, 3, 4, 5].map(i => rgb(css.getPropertyValue(`--z${i}-bg`).trim()));
+  const onLight = css.getPropertyValue("--on-light").trim();
+  const onDark  = css.getPropertyValue("--on-dark").trim();
+
+  function rgb(hex) {
+    const h = hex.replace("#", "");
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  }
+
+  function luminance([r, g, b]) {
+    const f = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  }
+
+  /* the ground colour at a document y, blended through the transition band
+     exactly as the CSS gradient blends it */
+  function inkAt(y) {
+    let over = sections[0];
+    for (const s of sections) {
+      if (s.el && y >= s.el.offsetTop) over = s;
+    }
+    const band = window.innerHeight * 0.26;
+    const into = Math.min(1, Math.max(0, (y - over.el.offsetTop) / band));
+    const from = grounds[Math.max(0, over.zone - 1)];
+    const to   = grounds[over.zone];
+    const behind = to.map((c, i) => from[i] + (c - from[i]) * into);
+    return luminance(behind) > 0.18 ? onLight : onDark;
+  }
+
+  /* tick positions are fixed to the viewport, so measure once per resize */
+  let tickY = new WeakMap();
+  function measureTicks() {
+    ticks.forEach(t => {
+      const r = t.getBoundingClientRect();
+      tickY.set(t, r.top + r.height / 2);
+    });
+  }
+  const tickCentre = t => tickY.get(t) ?? 0;
+
+  let raf = null;
+
+  function update() {
+    raf = null;
+    const mark = window.scrollY + window.innerHeight * 0.5;
+    let active = sections[0], frac = 0;
+
+    for (const s of sections) {
+      if (!s.el) continue;
+      const top = s.el.offsetTop;
+      const height = s.el.offsetHeight;
+      if (mark >= top && mark < top + height) {
+        active = s;
+        frac = Math.min(1, Math.max(0, (mark - top) / height));
+        break;
+      }
+      if (mark >= top + height) { active = s; frac = 1; }
+    }
+
+    const depth = Math.round(active.top + (active.bottom - active.top) * frac);
+    depthEl.textContent = String(depth).padStart(4, "0");
+    labelEl.textContent = active.label;
+
+    // The rail spans the viewport, so it crosses grounds. Every mark on it
+    // picks its own ink from the water directly behind it.
+    rail.style.setProperty("--rail-ink", inkAt(window.scrollY + 80));
+    ticks.forEach(t => { t.style.color = inkAt(window.scrollY + tickCentre(t)); });
+
+    // marine snow fades in below the light
+    const deep = ["twilight", "midnight", "abyss", "trench"].indexOf(active.id);
+    let snow = 0;
+    if (active.id === "twilight") snow = 0.45 * frac;
+    else if (deep > 0) snow = 1;
+    else if (active.id === "works") snow = Math.max(0, 0.6 - frac * 2);
+    document.documentElement.style.setProperty("--snow", snow.toFixed(2));
+
+    const current = TICK_FOR[active.id] || "dive";
+    ticks.forEach(t => t.setAttribute("aria-current", String(t.dataset.goto === current)));
+  }
+
+  function onScroll() { if (raf === null) raf = requestAnimationFrame(update); }
+
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", () => { measureTicks(); onScroll(); });
+
+  ticks.forEach(t => t.addEventListener("click", () => {
+    document.getElementById(t.dataset.goto)
+      .scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
+
+  /* ── reveal on entry ────────────────────────────────────────── */
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("seen"); io.unobserve(e.target); } });
+  }, { rootMargin: "0px 0px -12% 0px" });
+
+  document.querySelectorAll(".reveal").forEach(el => io.observe(el));
+
+  /* ── marine snow ────────────────────────────────────────────── */
+  const canvas = document.getElementById("snow");
+  const ctx = canvas.getContext("2d");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let flakes = [], dpr = 1;
+
+  /* one soft sprite, drawn scaled — flocculent, not a pinpoint starfield */
+  const sprite = document.createElement("canvas");
+  sprite.width = sprite.height = 32;
+  const sctx = sprite.getContext("2d");
+  const grad = sctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grad.addColorStop(0,    "rgba(226, 242, 238, 1)");
+  grad.addColorStop(0.35, "rgba(214, 236, 232, 0.55)");
+  grad.addColorStop(1,    "rgba(214, 236, 232, 0)");
+  sctx.fillStyle = grad;
+  sctx.fillRect(0, 0, 32, 32);
+
+  function seed() {
+    dpr = Math.min(2, devicePixelRatio || 1);
+    canvas.width  = innerWidth * dpr;
+    canvas.height = innerHeight * dpr;
+    canvas.style.width  = innerWidth + "px";
+    canvas.style.height = innerHeight + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const count = Math.round((innerWidth * innerHeight) / 5400);
+    flakes = Array.from({ length: count }, () => {
+      const near = Math.random() ** 2.6;          // most of it far off and faint
+      return {
+        x: Math.random() * innerWidth,
+        y: Math.random() * innerHeight,
+        r: 1.6 + near * 7,
+        v: 0.06 + near * 0.3,
+        d: Math.random() * Math.PI * 2,
+        a: 0.06 + near * 0.26,
+      };
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const f of flakes) {
+      ctx.globalAlpha = f.a;
+      ctx.drawImage(sprite, f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+      if (!still) {
+        f.y += f.v;
+        f.x += Math.sin(f.d += 0.005) * 0.14;
+        if (f.y - f.r > innerHeight) { f.y = -f.r; f.x = Math.random() * innerWidth; }
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (!still) requestAnimationFrame(draw);
+  }
+
+  seed();
+  draw();
+  addEventListener("resize", () => { seed(); if (still) draw(); });
+
+  measureTicks();
+  update();
+</script>
